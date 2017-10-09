@@ -8,6 +8,7 @@ import (
 	"log"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/abiosoft/ishell"
@@ -57,14 +58,19 @@ var et232Mems = map[string]mem{
 			"Ramp":       0x09,
 			"Stroke":     0x0D,
 			"Off":        0x0F}},
-	"ModeOverride":       mem{addr: 0xA3, desc: "Mode Switch Override"},
-	"AnalogOverride":     mem{addr: 0xA4, desc: "Analog Input Override"},
+	"ModeOverride": mem{addr: 0xA3, desc: "Mode Switch Override"},
+	"AnalogOverride": mem{addr: 0xA4, desc: "Analog Input Override",
+		settings: map[string]uint8{
+			"OverrideAll":  0x1F,
+			"OverrideNone": 0x00}},
 	"AutoPowerOffTimer":  mem{addr: 0xD3, desc: "Auto Power Off Timer"},
 	"ProgramFadeInTimer": mem{addr: 0xD8, desc: "Program Fade In Timer"},
 }
 
-// ET232 Mode Values
-const ()
+const (
+	et232WriteCommand = 'I'
+	et232ReadCommand  = 'H'
+)
 
 type et232 struct {
 	*bufio.Reader
@@ -101,12 +107,17 @@ func (e *et232) command(comType byte, args ...byte) (string, error) {
 }
 
 func (e *et232) ReadAddr(addr byte) (byte, error) {
-	s, err := e.command('H', addr)
+	s, err := e.command(et232ReadCommand, addr)
 	if err != nil {
 		return 0, err
 	}
 	v, err := strconv.ParseUint(s, 16, 8)
 	return byte(v), err
+}
+
+func (e *et232) WriteAddr(addr byte, val byte) error {
+	_, err := e.command(et232WriteCommand, addr, val)
+	return err
 }
 
 func (e *et232) waitForHandshake() error {
@@ -118,6 +129,29 @@ func (e *et232) waitForHandshake() error {
 		}
 	}
 	return fmt.Errorf("Failed to connect")
+}
+
+// Info reads from the device and summarizes the device state in a human-readable string.
+func (e *et232) Info() (string, error) {
+	var out []string
+	for name, mem := range et232Mems {
+		val, err := e.ReadAddr(mem.addr)
+		if err != nil {
+			return "", err
+		}
+		settingName := ""
+		if mem.settings != nil {
+			settingName = " (Unknown)"
+			for name, setting := range mem.settings {
+				if setting == val {
+					settingName = fmt.Sprintf(" (%s)", name)
+				}
+			}
+		}
+		out = append(out, fmt.Sprintf("%s: 0x%02X%s", name, val, settingName))
+	}
+	sort.Strings(out)
+	return strings.Join(out, "\n"), nil
 }
 
 func initShell(e *et232) {
@@ -148,22 +182,41 @@ func initShell(e *et232) {
 	})
 
 	shell.AddCmd(&ishell.Cmd{
+		Name:     "write",
+		Help:     "write memory address",
+		LongHelp: "write addr value",
+		Func: func(c *ishell.Context) {
+			if len(c.Args) != 2 {
+				c.Println("expected 2 arguments")
+			}
+			addr, err := strconv.ParseUint(c.Args[0], 0, 8)
+			if err != nil {
+				c.Println(err)
+				return
+			}
+			val, err := strconv.ParseUint(c.Args[1], 0, 8)
+			if err != nil {
+				c.Println(err)
+				return
+			}
+			err = e.WriteAddr(uint8(addr), uint8(val))
+			if err != nil {
+				c.Println(err)
+				return
+			}
+		},
+	})
+
+	shell.AddCmd(&ishell.Cmd{
 		Name: "info",
 		Help: "displays info about current device settings",
 		Func: func(c *ishell.Context) {
-			var out []string
-			for name, mem := range et232Mems {
-				val, err := e.ReadAddr(mem.addr)
-				if err != nil {
-					c.Println(err)
-					return
-				}
-				out = append(out, fmt.Sprintf("%s: 0x%02X\n", name, val))
+			info, err := e.Info()
+			if err != nil {
+				c.Println(err)
+				return
 			}
-			sort.Strings(out)
-			for _, s := range out {
-				c.Print(s)
-			}
+			c.Println(info)
 		},
 	})
 
