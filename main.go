@@ -154,13 +154,8 @@ func (e *et232) Info() (string, error) {
 	return strings.Join(out, "\n"), nil
 }
 
-func initShell(e *et232) {
-	shell := ishell.New()
-
-	// display welcome info.
-	shell.Println("estim CLI")
-
-	shell.AddCmd(&ishell.Cmd{
+func (e *et232) AddCmds(s *ishell.Shell) {
+	s.AddCmd(&ishell.Cmd{
 		Name:     "read",
 		Help:     "read memory address(es)",
 		LongHelp: "read addr1 [addr2] ...",
@@ -181,7 +176,7 @@ func initShell(e *et232) {
 		},
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:     "write",
 		Help:     "write memory address",
 		LongHelp: "write addr value",
@@ -207,7 +202,7 @@ func initShell(e *et232) {
 		},
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name: "info",
 		Help: "displays info about current device settings",
 		Func: func(c *ishell.Context) {
@@ -220,7 +215,7 @@ func initShell(e *et232) {
 		},
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name: "handshake",
 		Help: "perform a handshake with the device",
 		Func: func(c *ishell.Context) {
@@ -230,9 +225,6 @@ func initShell(e *et232) {
 			c.ProgressBar().Stop()
 		},
 	})
-
-	// run shell
-	shell.Run()
 }
 
 func main() {
@@ -251,5 +243,12 @@ func main() {
 		log.Printf("Waiting for handshake...")
 		e.waitForHandshake()
 	}
-	initShell(&e)
+	shell := ishell.New()
+
+	// display welcome info.
+	shell.Println("estim CLI")
+	e.AddCmds(shell)
+
+	// run shell
+	shell.Run()
 }
