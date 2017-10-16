@@ -23,7 +23,7 @@ func main() {
 	}
 
 	shell := ishell.New()
-	shell.Println("estim CLI")
+	shell.Println("estim CLI by biribiribiri. Type \"help\" to get a list of commands.")
 	e.AddCmds(shell)
 	shell.Run()
 }
