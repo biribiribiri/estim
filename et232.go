@@ -1,11 +1,9 @@
-package main
+package estim
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -72,13 +70,26 @@ const (
 	et232ReadCommand  = 'H'
 )
 
-type et232 struct {
-	*bufio.Reader
-	io.Writer
+type ET232 struct {
+	r *bufio.Reader
+	w io.Writer
 }
 
-func checksum(com []byte) byte {
-	var sum byte = 0
+// NewSerialET232 returns an ET232 that will attempt to communicate with the
+// device over the specified serial port (e.g. "COM1" on Windows or
+// "/dev/ttyUSB0" on *nix).
+func NewSerialET232(portName string) (*ET232, error) {
+	c := &serial.Config{Name: portName, Baud: 19200, ReadTimeout: time.Second}
+	s, err := serial.OpenPort(c)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ET232{bufio.NewReader(s), s}, nil
+}
+
+func checksum(com []uint8) uint8 {
+	var sum uint8 = 0
 	for _, b := range com {
 		if b >= 0x30 && b <= 0x90 {
 			sum = sum + b
@@ -87,52 +98,68 @@ func checksum(com []byte) byte {
 	return sum
 }
 
-func (e *et232) command(comType byte, args ...byte) (string, error) {
-	ret := []byte{comType}
+// command sends a command to the device, and returns the response. Commands
+// have the following format:
+// 1. A single byte representing the type of the command (comType).
+// 2. One or more bytes of arguments (args). The number of arguments is
+//    determined by the command type.
+// 3. A checksum.
+//
+// The device returns a string ending in '\n'. This function will return the
+// response string, excluding the final '\n' character.
+func (e *ET232) command(comType uint8, args ...uint8) (string, error) {
+	ret := []uint8{comType}
 	for _, arg := range args {
-		ret = append(ret, []byte(fmt.Sprintf("%02X", arg))...)
+		ret = append(ret, []uint8(fmt.Sprintf("%02X", arg))...)
 	}
-	ret = append(ret, []byte(fmt.Sprintf("%02X\r", checksum(ret)))...)
+	ret = append(ret, []uint8(fmt.Sprintf("%02X\r", checksum(ret)))...)
 	glog.Info("%s", ret)
-	_, err := e.Write(ret)
+	_, err := e.w.Write(ret)
 	if err != nil {
 		return "", err
 	}
 
-	str, err := e.ReadString('\n')
+	str, err := e.r.ReadString('\n')
 	if err != nil {
 		return "", err
 	}
 	return str[:len(str)-1], nil
 }
 
-func (e *et232) ReadAddr(addr byte) (byte, error) {
+// ReadAddr reads and returns the value at address addr.
+func (e *ET232) ReadAddr(addr uint8) (uint8, error) {
 	s, err := e.command(et232ReadCommand, addr)
 	if err != nil {
 		return 0, err
 	}
 	v, err := strconv.ParseUint(s, 16, 8)
-	return byte(v), err
+	return uint8(v), err
 }
 
-func (e *et232) WriteAddr(addr byte, val byte) error {
+// WriteAddr writes val to address addr.
+func (e *ET232) WriteAddr(addr uint8, val uint8) error {
 	_, err := e.command(et232WriteCommand, addr, val)
 	return err
 }
 
-func (e *et232) waitForHandshake() error {
-	glog.Info("waiting to connect")
+// Handshake attempts to perform a serial handshake with the device. This must
+// be performed every time the device is powercycled. After calling this
+// function, the device should be powercycled for this function to succeed.
+func (e *ET232) Handshake() error {
+	glog.Info("Attempting to perform a serial handshake.")
 	for i := 0; i < 100; i++ {
-		str, _ := e.ReadString('\n')
+		// The ET232 sends three bytes "\000CC" when it starts. If trasmission
+		// succeeds, the device will listen for serial commands.
+		str, _ := e.r.ReadString('\n')
 		if str == "\000CC" {
 			return nil
 		}
 	}
-	return fmt.Errorf("Failed to connect")
+	return fmt.Errorf("Failed to connect to the ET232.")
 }
 
 // Info reads from the device and summarizes the device state in a human-readable string.
-func (e *et232) Info() (string, error) {
+func (e *ET232) Info() (string, error) {
 	var out []string
 	for name, mem := range et232Mems {
 		val, err := e.ReadAddr(mem.addr)
@@ -154,7 +181,8 @@ func (e *et232) Info() (string, error) {
 	return strings.Join(out, "\n"), nil
 }
 
-func (e *et232) AddCmds(s *ishell.Shell) {
+// AddCmds adds commands for interacting with the ET232 to the passed Shell.
+func (e *ET232) AddCmds(s *ishell.Shell) {
 	s.AddCmd(&ishell.Cmd{
 		Name:     "read",
 		Help:     "read memory address(es)",
@@ -221,34 +249,8 @@ func (e *et232) AddCmds(s *ishell.Shell) {
 		Func: func(c *ishell.Context) {
 			c.ProgressBar().Indeterminate(true)
 			c.ProgressBar().Start()
-			e.waitForHandshake()
+			e.Handshake()
 			c.ProgressBar().Stop()
 		},
 	})
-}
-
-func main() {
-	handshake := flag.Bool("handshake", true, "perform handshake on start")
-
-	flag.Parse()
-	c := &serial.Config{Name: "/dev/ttyUSB0", Baud: 19200, ReadTimeout: time.Second}
-	s, err := serial.OpenPort(c)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	e := et232{bufio.NewReader(s), s}
-
-	if *handshake {
-		log.Printf("Waiting for handshake...")
-		e.waitForHandshake()
-	}
-	shell := ishell.New()
-
-	// display welcome info.
-	shell.Println("estim CLI")
-	e.AddCmds(shell)
-
-	// run shell
-	shell.Run()
 }
