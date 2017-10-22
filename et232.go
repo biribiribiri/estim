@@ -247,6 +247,7 @@ func (e *ET232) AddCmds(s *ishell.Shell) {
 		Name: "handshake",
 		Help: "perform a handshake with the device",
 		Func: func(c *ishell.Context) {
+			c.Println("Performing serial handshake. Please reset the device.")
 			c.ProgressBar().Indeterminate(true)
 			c.ProgressBar().Start()
 			e.Handshake()
