@@ -97,8 +97,8 @@ var et232SettingMap = map[et232MemSetting]uint8{
 	et232MemSetting{ModeOverride, ModeStroke}:     0x8D,
 	et232MemSetting{ModeOverride, ModeOff}:        0x8F,
 
-	et232MemSetting{AnalogOverride, OverrideAll}: 0x8D,
-	et232MemSetting{AnalogOverride, OverrideOff}: 0x8F,
+	et232MemSetting{AnalogOverride, OverrideAll}: 0x1F,
+	et232MemSetting{AnalogOverride, OverrideOff}: 0x00,
 }
 
 // GetSetting returns the ET232Setting corresponding to a specified ET232Mem and value.
