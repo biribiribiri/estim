@@ -14,62 +14,6 @@ import (
 	"github.com/tarm/serial"
 )
 
-type mem struct {
-	addr     uint8
-	desc     string
-	min      uint8
-	max      uint8
-	settings map[string]uint8
-}
-
-var et232Mems = map[string]mem{
-	"PulseWidthA":      mem{addr: 0x08, desc: "Channel A Pulse Width"},
-	"FreqRecA":         mem{addr: 0x09, desc: "Channel A Pulse Frequency Reciprocal"},
-	"PulseAmpA":        mem{addr: 0x0A, desc: "Channel A Pulse Amplitude"},
-	"PowerCompA":       mem{addr: 0x0B, desc: "Channel A Power Compensation"},
-	"PulsePolarityEnA": mem{addr: 0x0C, desc: "Channel A Pulse Enable Polarity"},
-	"PulseWidthB":      mem{addr: 0x0E, desc: "Channel B Pulse Width"},
-	"FreqRecB":         mem{addr: 0x0F, desc: "Channel B Pulse Frequency Reciprocal"},
-	"PulseAmpB":        mem{addr: 0x10, desc: "Channel B Pulse Amplitude"},
-	"PowerCompB":       mem{addr: 0x11, desc: "Channel B Power Compensation"},
-	"PulsePolarityEnB": mem{addr: 0x12, desc: "Channel B Pulse Enable Polarity"},
-	"B":                mem{addr: 0x88, desc: "Position of Pot B"},
-	"MA":               mem{addr: 0x89, desc: "Position of MA Pot"},
-	"BatteryVoltage":   mem{addr: 0x8A, desc: "Battery Voltage"},
-	"AudioInput":       mem{addr: 0x8B, desc: "Audio Input Level"},
-	"A":                mem{addr: 0x8C, desc: "Position of Pot A"},
-	"Mode": mem{addr: 0xA2, desc: "Mode Switch Position",
-		settings: map[string]uint8{
-			"Waves":      0x0B,
-			"Intense":    0x0A,
-			"Random":     0x0E,
-			"AudioSoft":  0x06,
-			"AudioLoud":  0x02,
-			"AudioWaves": 0x03,
-			"User":       0x07,
-			"HiFreq":     0x05,
-			"Climb":      0x01,
-			"Throb":      0x00,
-			"Combo":      0x04,
-			"Thrust":     0x0C,
-			"Thump":      0x08,
-			"Ramp":       0x09,
-			"Stroke":     0x0D,
-			"Off":        0x0F}},
-	"ModeOverride": mem{addr: 0xA3, desc: "Mode Switch Override"},
-	"AnalogOverride": mem{addr: 0xA4, desc: "Analog Input Override",
-		settings: map[string]uint8{
-			"OverrideAll":  0x1F,
-			"OverrideNone": 0x00}},
-	"AutoPowerOffTimer":  mem{addr: 0xD3, desc: "Auto Power Off Timer"},
-	"ProgramFadeInTimer": mem{addr: 0xD8, desc: "Program Fade In Timer"},
-}
-
-const (
-	et232WriteCommand = 'I'
-	et232ReadCommand  = 'H'
-)
-
 type ET232 struct {
 	r *bufio.Reader
 	w io.Writer
@@ -184,33 +128,38 @@ func (e *ET232) Info() (string, error) {
 // AddCmds adds commands for interacting with the ET232 to the passed Shell.
 func (e *ET232) AddCmds(s *ishell.Shell) {
 	s.AddCmd(&ishell.Cmd{
-		Name:     "read",
-		Help:     "read memory address(es)",
-		LongHelp: "read addr1 [addr2] ...",
+		Name: "read",
+		Help: "read memory address. Ex: read 0x11",
 		Func: func(c *ishell.Context) {
-			for _, arg := range c.Args {
-				addr, err := strconv.ParseUint(arg, 0, 8)
-				if err != nil {
-					c.Println(err)
-					return
-				}
-				val, err := e.ReadAddr(uint8(addr))
-				if err != nil {
-					c.Println(err)
-					return
-				}
-				c.Printf("0x%02X: 0x%02X\n", addr, val)
+			if len(c.Args) != 1 {
+				c.Println("expected 1 argument")
+				return
 			}
+			addr, err := ET232MemString(c.Args[0])
+			if err != nil {
+				u, err := strconv.ParseUint(c.Args[0], 0, 8)
+				if err != nil {
+					c.Println(err)
+					return
+				}
+				addr = ET232Mem(u)
+			}
+			val, err := e.ReadAddr(uint8(addr))
+			if err != nil {
+				c.Println(err)
+				return
+			}
+			c.Printf("0x%02X\n", val)
 		},
 	})
 
 	s.AddCmd(&ishell.Cmd{
-		Name:     "write",
-		Help:     "write memory address",
-		LongHelp: "write addr value",
+		Name: "write",
+		Help: "write memory address. Ex: write 0x1 0x88",
 		Func: func(c *ishell.Context) {
 			if len(c.Args) != 2 {
 				c.Println("expected 2 arguments")
+				return
 			}
 			addr, err := strconv.ParseUint(c.Args[0], 0, 8)
 			if err != nil {
