@@ -1,5 +1,7 @@
 package estim
 
+import "fmt"
+
 type mem struct {
 	addr uint8
 	desc string
@@ -12,26 +14,26 @@ type mem struct {
 type ET232Mem uint8
 
 const (
-	PulseWidthA        ET232Mem = 0x08 // Channel A Pulse Width
-	FreqRecA           ET232Mem = 0x09 // Channel A Pulse Frequency Reciprocal
-	PulseAmpA          ET232Mem = 0x0A // Channel A Pulse Amplitude
-	PowerCompA         ET232Mem = 0x0B // Channel A Power Compensation
-	PulsePolarityEnA   ET232Mem = 0x0C // Channel A Pulse Enable Polarity
-	PulseWidthB        ET232Mem = 0x0E // Channel B Pulse Width
-	FreqRecB           ET232Mem = 0x0F // Channel B Pulse Frequency Reciprocal
-	PulseAmpB          ET232Mem = 0x10 // Channel B Pulse Amplitude
-	PowerCompB         ET232Mem = 0x11 // Channel B Power Compensation
-	PulsePolarityEnB   ET232Mem = 0x12 // Channel B Pulse Enable Polarity
-	PotB               ET232Mem = 0x88 // Position of Pot B
-	PotMA              ET232Mem = 0x89 // Position of MA Pot
-	BatteryVoltage     ET232Mem = 0x8A // Battery Voltage
-	AudioInput         ET232Mem = 0x8B // Audio Input Level
-	PotA               ET232Mem = 0x8C // Position of Pot A
-	Mode               ET232Mem = 0xA2 // Mode Switch Position
-	ModeOverride       ET232Mem = 0xA3 // Mode Switch Override
-	AnalogOverride     ET232Mem = 0xA4 // Analog Input Override
-	AutoPowerOffTimer  ET232Mem = 0xD3 // Auto Power Off Timer
-	ProgramFadeInTimer ET232Mem = 0xD8 // Program Fade In Timer
+	PulseWidthA        ET232Mem = 0x08 // PulseWidthA is Channel A Pulse Width
+	FreqRecA           ET232Mem = 0x09 // FreqRecA is Channel A Pulse Frequency Reciprocal
+	PulseAmpA          ET232Mem = 0x0A // PulseAmpA is Channel A Pulse Amplitude
+	PowerCompA         ET232Mem = 0x0B // PowerCompA is Channel A Power Compensation
+	PulsePolarityEnA   ET232Mem = 0x0C // PulsePolarityEnA is Channel A Pulse Enable Polarity
+	PulseWidthB        ET232Mem = 0x0E // PulseWidthB is Channel B Pulse Width
+	FreqRecB           ET232Mem = 0x0F // FreqRecB is Channel B Pulse Frequency Reciprocal
+	PulseAmpB          ET232Mem = 0x10 // PulseAmpB is Channel B Pulse Amplitude
+	PowerCompB         ET232Mem = 0x11 // PowerCompB is Channel B Power Compensation
+	PulsePolarityEnB   ET232Mem = 0x12 // PulsePolarityEnB is Channel B Pulse Enable Polarity
+	PotB               ET232Mem = 0x88 // PotB is Position of Pot B
+	PotMA              ET232Mem = 0x89 // PotMA is Position of MA Pot
+	BatteryVoltage     ET232Mem = 0x8A // BatteryVoltage is Battery Voltage
+	AudioInput         ET232Mem = 0x8B // AudioInput is Audio Input Level
+	PotA               ET232Mem = 0x8C // PotA is Position of Pot A
+	Mode               ET232Mem = 0xA2 // Mode is Mode Switch Position
+	ModeOverride       ET232Mem = 0xA3 // ModeOverride is Mode Switch Override
+	AnalogOverride     ET232Mem = 0xA4 // AnalogOverride is Analog Input Override
+	AutoPowerOffTimer  ET232Mem = 0xD3 // AutoPowerOffTimer is Auto Power Off Timer
+	ProgramFadeInTimer ET232Mem = 0xD8 // ProgramFadeInTimer is Program Fade In Timer
 )
 
 // ET232Setting is a named setting for an ET232Mem. This is used for certain
@@ -107,47 +109,14 @@ var et232SettingMap = map[et232MemSetting]uint8{
 	et232MemSetting{AnalogOverride, OverrideOff}: 0x8F,
 }
 
-var et232Mems = map[string]mem{
-	"PulseWidthA":      mem{addr: 0x08, desc: "Channel A Pulse Width"},
-	"FreqRecA":         mem{addr: 0x09, desc: "Channel A Pulse Frequency Reciprocal"},
-	"PulseAmpA":        mem{addr: 0x0A, desc: "Channel A Pulse Amplitude"},
-	"PowerCompA":       mem{addr: 0x0B, desc: "Channel A Power Compensation"},
-	"PulsePolarityEnA": mem{addr: 0x0C, desc: "Channel A Pulse Enable Polarity"},
-	"PulseWidthB":      mem{addr: 0x0E, desc: "Channel B Pulse Width"},
-	"FreqRecB":         mem{addr: 0x0F, desc: "Channel B Pulse Frequency Reciprocal"},
-	"PulseAmpB":        mem{addr: 0x10, desc: "Channel B Pulse Amplitude"},
-	"PowerCompB":       mem{addr: 0x11, desc: "Channel B Power Compensation"},
-	"PulsePolarityEnB": mem{addr: 0x12, desc: "Channel B Pulse Enable Polarity"},
-	"B":                mem{addr: 0x88, desc: "Position of Pot B"},
-	"MA":               mem{addr: 0x89, desc: "Position of MA Pot"},
-	"BatteryVoltage":   mem{addr: 0x8A, desc: "Battery Voltage"},
-	"AudioInput":       mem{addr: 0x8B, desc: "Audio Input Level"},
-	"A":                mem{addr: 0x8C, desc: "Position of Pot A"},
-	"Mode": mem{addr: 0xA2, desc: "Mode Switch Position",
-		settings: map[string]uint8{
-			"Waves":      0x0B,
-			"Intense":    0x0A,
-			"Random":     0x0E,
-			"AudioSoft":  0x06,
-			"AudioLoud":  0x02,
-			"AudioWaves": 0x03,
-			"User":       0x07,
-			"HiFreq":     0x05,
-			"Climb":      0x01,
-			"Throb":      0x00,
-			"Combo":      0x04,
-			"Thrust":     0x0C,
-			"Thump":      0x08,
-			"Ramp":       0x09,
-			"Stroke":     0x0D,
-			"Off":        0x0F}},
-	"ModeOverride": mem{addr: 0xA3, desc: "Mode Switch Override"},
-	"AnalogOverride": mem{addr: 0xA4, desc: "Analog Input Override",
-		settings: map[string]uint8{
-			"OverrideAll": 0x1F,
-			"OverrideOff": 0x00}},
-	"AutoPowerOffTimer":  mem{addr: 0xD3, desc: "Auto Power Off Timer"},
-	"ProgramFadeInTimer": mem{addr: 0xD8, desc: "Program Fade In Timer"},
+// GetSetting returns the ET232Setting corresponding to a specified ET232Mem and value.
+func GetSetting(mem ET232Mem, val uint8) (ET232Setting, error) {
+	for ms, v := range et232SettingMap {
+		if ms.mem == mem && v == val {
+			return ms.setting, nil
+		}
+	}
+	return "", fmt.Errorf("No ET232Setting for memory %v and value %v", mem, val)
 }
 
 const (

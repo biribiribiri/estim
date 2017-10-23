@@ -4,12 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/abiosoft/ishell"
 	"github.com/golang/glog"
 	"github.com/tarm/serial"
 )
@@ -70,9 +68,9 @@ func (e *ET232) command(comType uint8, args ...uint8) (string, error) {
 	return str[:len(str)-1], nil
 }
 
-// ReadAddr reads and returns the value at address addr.
-func (e *ET232) ReadAddr(addr uint8) (uint8, error) {
-	s, err := e.command(et232ReadCommand, addr)
+// Read reads and returns the value at address addr.
+func (e *ET232) Read(addr ET232Mem) (uint8, error) {
+	s, err := e.command(et232ReadCommand, uint8(addr))
 	if err != nil {
 		return 0, err
 	}
@@ -80,10 +78,18 @@ func (e *ET232) ReadAddr(addr uint8) (uint8, error) {
 	return uint8(v), err
 }
 
-// WriteAddr writes val to address addr.
-func (e *ET232) WriteAddr(addr uint8, val uint8) error {
-	_, err := e.command(et232WriteCommand, addr, val)
+// Write writes val to the specified memory.
+func (e *ET232) Write(mem ET232Mem, val uint8) error {
+	_, err := e.command(et232WriteCommand, uint8(mem), val)
 	return err
+}
+
+// WriteSetting sets the specified ET232Mem to the passed setting.
+func (e *ET232) WriteSetting(mem ET232Mem, setting ET232Setting) error {
+	if val, ok := et232SettingMap[et232MemSetting{mem, setting}]; ok {
+		return e.Write(mem, val)
+	}
+	return fmt.Errorf("No setting %s is not valid for memory %v ", setting, mem)
 }
 
 // Handshake attempts to perform a serial handshake with the device. This must
@@ -104,103 +110,38 @@ func (e *ET232) Handshake() error {
 
 // Info reads from the device and summarizes the device state in a human-readable string.
 func (e *ET232) Info() (string, error) {
+	mems := []ET232Mem{PulseWidthA,
+		FreqRecA,
+		PulseAmpA,
+		PowerCompA,
+		PulsePolarityEnA,
+		PulseWidthB,
+		FreqRecB,
+		PulseAmpB,
+		PowerCompB,
+		PulsePolarityEnB,
+		PotB,
+		PotMA,
+		BatteryVoltage,
+		AudioInput,
+		PotA,
+		Mode,
+		ModeOverride,
+		AnalogOverride,
+		AutoPowerOffTimer,
+		ProgramFadeInTimer}
 	var out []string
-	for name, mem := range et232Mems {
-		val, err := e.ReadAddr(mem.addr)
+	for _, mem := range mems {
+		val, err := e.Read(mem)
 		if err != nil {
 			return "", err
 		}
-		settingName := ""
-		if mem.settings != nil {
-			settingName = " (Unknown)"
-			for name, setting := range mem.settings {
-				if setting == val {
-					settingName = fmt.Sprintf(" (%s)", name)
-				}
-			}
+		setting, err := GetSetting(mem, val)
+		if err == nil {
+			out = append(out, fmt.Sprintf("%s: %s", mem, setting))
+		} else {
+			out = append(out, fmt.Sprintf("%s: 0x%02X", mem, val))
 		}
-		out = append(out, fmt.Sprintf("%s: 0x%02X%s", name, val, settingName))
 	}
-	sort.Strings(out)
 	return strings.Join(out, "\n"), nil
-}
-
-// AddCmds adds commands for interacting with the ET232 to the passed Shell.
-func (e *ET232) AddCmds(s *ishell.Shell) {
-	s.AddCmd(&ishell.Cmd{
-		Name: "read",
-		Help: "read memory address. Ex: read 0x11",
-		Func: func(c *ishell.Context) {
-			if len(c.Args) != 1 {
-				c.Println("expected 1 argument")
-				return
-			}
-			addr, err := ET232MemString(c.Args[0])
-			if err != nil {
-				u, err := strconv.ParseUint(c.Args[0], 0, 8)
-				if err != nil {
-					c.Println(err)
-					return
-				}
-				addr = ET232Mem(u)
-			}
-			val, err := e.ReadAddr(uint8(addr))
-			if err != nil {
-				c.Println(err)
-				return
-			}
-			c.Printf("0x%02X\n", val)
-		},
-	})
-
-	s.AddCmd(&ishell.Cmd{
-		Name: "write",
-		Help: "write memory address. Ex: write 0x1 0x88",
-		Func: func(c *ishell.Context) {
-			if len(c.Args) != 2 {
-				c.Println("expected 2 arguments")
-				return
-			}
-			addr, err := strconv.ParseUint(c.Args[0], 0, 8)
-			if err != nil {
-				c.Println(err)
-				return
-			}
-			val, err := strconv.ParseUint(c.Args[1], 0, 8)
-			if err != nil {
-				c.Println(err)
-				return
-			}
-			err = e.WriteAddr(uint8(addr), uint8(val))
-			if err != nil {
-				c.Println(err)
-				return
-			}
-		},
-	})
-
-	s.AddCmd(&ishell.Cmd{
-		Name: "info",
-		Help: "displays info about current device settings",
-		Func: func(c *ishell.Context) {
-			info, err := e.Info()
-			if err != nil {
-				c.Println(err)
-				return
-			}
-			c.Println(info)
-		},
-	})
-
-	s.AddCmd(&ishell.Cmd{
-		Name: "handshake",
-		Help: "perform a handshake with the device",
-		Func: func(c *ishell.Context) {
-			c.Println("Performing serial handshake. Please reset the device.")
-			c.ProgressBar().Indeterminate(true)
-			c.ProgressBar().Start()
-			e.Handshake()
-			c.ProgressBar().Stop()
-		},
-	})
 }
