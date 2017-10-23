@@ -1,3 +1,5 @@
+[![GoDoc](https://godoc.org/github.com/biribiribiri/estim?status.svg)](http://godoc.org/github.com/biribiribiri/estim)
+
 # estim
 A Go library for interfacing with e-stim units. Only works with the Erostek ET232 for now.
 
