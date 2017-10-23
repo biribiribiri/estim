@@ -2,14 +2,6 @@ package estim
 
 import "fmt"
 
-type mem struct {
-	addr uint8
-	desc string
-
-	// If not nil, this memory only takes discrete values.
-	settings map[string]uint8
-}
-
 // ET232Mem represents an ET232 memory address.
 type ET232Mem uint8
 
