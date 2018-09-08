@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang/glog"
@@ -13,8 +15,9 @@ import (
 )
 
 type ET232 struct {
-	r *bufio.Reader
-	w io.Writer
+	r    *bufio.Reader
+	w    io.Writer
+	lock sync.Mutex
 }
 
 // NewSerialET232 returns an ET232 that will attempt to communicate with the
@@ -27,7 +30,7 @@ func NewSerialET232(portName string) (*ET232, error) {
 		return nil, err
 	}
 
-	return &ET232{bufio.NewReader(s), s}, nil
+	return &ET232{r: bufio.NewReader(s), w: s}, nil
 }
 
 func checksum(com []uint8) uint8 {
@@ -55,7 +58,11 @@ func (e *ET232) command(comType uint8, args ...uint8) (string, error) {
 		ret = append(ret, []uint8(fmt.Sprintf("%02X", arg))...)
 	}
 	ret = append(ret, []uint8(fmt.Sprintf("%02X\r", checksum(ret)))...)
-	glog.Info("%s", ret)
+	glog.V(2).Infof("Sending command: % X", ret)
+
+	e.lock.Lock()
+	defer e.lock.Unlock()
+
 	_, err := e.w.Write(ret)
 	if err != nil {
 		return "", err
@@ -65,6 +72,7 @@ func (e *ET232) command(comType uint8, args ...uint8) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	glog.V(2).Infof("Recieved response: % X", str)
 	return str[:len(str)-1], nil
 }
 
@@ -80,8 +88,37 @@ func (e *ET232) Read(addr ET232Mem) (uint8, error) {
 
 // Write writes val to the specified memory.
 func (e *ET232) Write(mem ET232Mem, val uint8) error {
+	glog.V(2).Info("Writing ", val, " to ", mem)
 	_, err := e.command(et232WriteCommand, uint8(mem), val)
 	return err
+}
+
+func floatToUint8(val float64) uint8 {
+	if val < 0 {
+		val = 0
+	}
+	if val > 1 {
+		val = 1
+	}
+	return uint8(val * math.MaxUint8)
+}
+
+type et232Knob struct {
+	mem ET232Mem
+	e   *ET232
+}
+
+func (e *ET232) NewKnob(mem ET232Mem) Knob {
+	return &et232Knob{mem, e}
+}
+
+func (k *et232Knob) Set(val float64) error {
+	glog.V(1).Infof("Setting %v to %v", k.mem, val)
+	return k.e.Write(k.mem, floatToUint8(val))
+}
+
+func (k *et232Knob) Resolution() float64 {
+	return 1.0 / math.MaxUint8
 }
 
 // WriteSetting sets the specified ET232Mem to the passed setting.
@@ -96,6 +133,9 @@ func (e *ET232) WriteSetting(mem ET232Mem, setting ET232Setting) error {
 // be performed every time the device is powercycled. After calling this
 // function, the device should be powercycled for this function to succeed.
 func (e *ET232) Handshake() error {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+
 	glog.Info("Attempting to perform a serial handshake.")
 	for i := 0; i < 100; i++ {
 		// The ET232 sends three bytes "\000CC" when it starts. If trasmission
@@ -106,6 +146,15 @@ func (e *ET232) Handshake() error {
 		}
 	}
 	return fmt.Errorf("Failed to connect to the ET232.")
+}
+
+// HandshakeIfNeeded first tries to see if the device is already accepting
+// serial commands. If it is not, then it calls Handshake().
+func (e *ET232) HandshakeIfNeeded() error {
+	if _, err := e.Read(PotA); err == nil {
+		return nil
+	}
+	return e.Handshake()
 }
 
 // Info reads from the device and summarizes the device state in a human-readable string.

@@ -52,6 +52,9 @@ const (
 
 	OverrideAll ET232Setting = "OverrideAll"
 	OverrideOff ET232Setting = "OverrideOff"
+	OverrideA   ET232Setting = "OverrideA"
+	OverrideB   ET232Setting = "OverrideB"
+	OverrideAB  ET232Setting = "OverrideAB"
 )
 
 //go:generate enumer -type=ET232Mem
@@ -98,6 +101,9 @@ var et232SettingMap = map[et232MemSetting]uint8{
 	et232MemSetting{ModeOverride, ModeOff}:        0x8F,
 
 	et232MemSetting{AnalogOverride, OverrideAll}: 0x1F,
+	et232MemSetting{AnalogOverride, OverrideA}:   0x10,
+	et232MemSetting{AnalogOverride, OverrideB}:   0x01,
+	et232MemSetting{AnalogOverride, OverrideAB}:  0x11,
 	et232MemSetting{AnalogOverride, OverrideOff}: 0x00,
 }
 
